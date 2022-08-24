@@ -12,8 +12,8 @@ import MetFuncs_Raw
 ##import HeatMap_Plotterelat
 ##import Logo_plot
 idx = pd.IndexSlice
-from functools import partial
-import geopy.distance
+import warnings
+warnings.filterwarnings("ignore")
 
 
 
@@ -21,20 +21,24 @@ import geopy.distance
 ####### https://www.spc.noaa.gov/wcm/#data #######
 class SPC_TableLoader:
     def __init__(self,*args,**kwargs):
-        self.location = os.getcwd()[0:os.getcwd().find('trunk')]+'inputs/'
+        self.location = os.getcwd()+'/inputs/'
+        if not os.path.exists(self.location):
+            os.mkdir(self.location)
+        
         if len(args) > 0:
             if args[0].lower() in ['-h','h','help','-help']:
 
                 print("""
 SPC_TableLoader:\n
-  keywords:\n
-    por = [begpor,endpor]YYYMMDD\n
-    hail_path = 'path to data if not default'\n
-    torn_path = 'path to data if not default'\n
-    wind_path = 'path to data if not default'\n
+  keywords:
+    por = [begpor,endpor]YYYYMMDD
+    hail_path = 'path to data if not default'
+    torn_path = 'path to data if not default'
+    wind_path = 'path to data if not default'
     bbox = [nlat,slat,elon,wlon]
     site = [icao or lat,plat or lon, distance in NM] - still in dev and can't be used with bbox
     """)
+                return
 
             else:
                 print("Only non keyword arg is 'help'")
@@ -43,179 +47,183 @@ SPC_TableLoader:\n
             if 'hail_path' in kwargs.keys():
                 hail_path = kwargs['hail_path']
             else:
-                hail_path = self.location+'storm_predicition_center/hail.csv'
+                hail_path = self.location+'hail.csv'
 
             if 'torn_path' in kwargs.keys():
                 torn_path = kwargs['torn_path']
             else:
-                torn_path = self.location+'storm_predicition_center/torn.csv'
+                torn_path = self.location+'torn.csv'
 
             if 'wind_path' in kwargs.keys():
                 wind_path = kwargs['wind_path']
             else:
-                wind_path = self.location+'storm_predicition_center/wind.csv'
+                wind_path = self.location+'wind.csv'
             if 'update' in kwargs.keys():
                 if kwargs['update']:
                     self.Update_CSVs()
                     
         else:
-            hail_path = self.location+'storm_predicition_center/hail.csv'
-            torn_path = self.location+'storm_predicition_center/torn.csv'
-            wind_path = self.location+'storm_predicition_center/wind.csv'
+            hail_path = self.location+'hail.csv'
+            torn_path = self.location+'torn.csv'
+            wind_path = self.location+'wind.csv'
 
-        print('Loading SPC Data....')
+        print('Loading SPC Data....\n..May take a few minutes')
 
         self.time_type = 'central'
         self.net_plat = False
 
-        self.process(hail_path,torn_path,wind_path)
-        
+        try:
+            self.process(hail_path,torn_path,wind_path)
+            stop = False
+        except:
+            print('Need to run .Update_CSVs if on mac/linux with wget or \n download SPC data, rename to torn.csv,hail.csv,wind.csv and save in inputs directory')
+            stop = True
+        if not stop:
+            if kwargs:
+                if 'por' in kwargs.keys():
+                    self.torn['datetime'] = pd.to_datetime({'year':self.torn['yr'].values,'month':self.torn['mo'].values,'day':self.torn['dy'].values,'hour':pd.to_datetime(self.torn['time']).dt.hour})
+                    self.hail['datetime'] = pd.to_datetime({'year':self.hail['yr'].values,'month':self.hail['mo'].values,'day':self.hail['dy'].values,'hour':pd.to_datetime(self.hail['time']).dt.hour})
+                    self.wind['datetime'] = pd.to_datetime({'year':self.wind['yr'].values,'month':self.wind['mo'].values,'day':self.wind['dy'].values,'hour':pd.to_datetime(self.wind['time']).dt.hour})
+                    if type(kwargs['por']) == list:
+                        kwargs['por'] = [str(x) for x in kwargs['por']]
+                        self.torn = self.torn[(self.torn['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.torn['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
 
-        if kwargs:
-            if 'por' in kwargs.keys():
-                self.torn['datetime'] = pd.to_datetime({'year':self.torn['yr'].values,'month':self.torn['mo'].values,'day':self.torn['dy'].values,'hour':pd.to_datetime(self.torn['time']).dt.hour})
-                self.hail['datetime'] = pd.to_datetime({'year':self.hail['yr'].values,'month':self.hail['mo'].values,'day':self.hail['dy'].values,'hour':pd.to_datetime(self.hail['time']).dt.hour})
-                self.wind['datetime'] = pd.to_datetime({'year':self.wind['yr'].values,'month':self.wind['mo'].values,'day':self.wind['dy'].values,'hour':pd.to_datetime(self.wind['time']).dt.hour})
-                if type(kwargs['por']) == list:
-                    kwargs['por'] = [str(x) for x in kwargs['por']]
-                    self.torn = self.torn[(self.torn['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.torn['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        self.hail = self.hail[(self.hail['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.hail['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
 
-                    self.hail = self.hail[(self.hail['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.hail['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        self.wind = self.wind[(self.wind['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.wind['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        
+                        
+                    elif type(kwargs['por']) == tuple:
+                        kwargs['por'] = [str(x) for x in kwargs['por']]
+                        self.torn = self.torn[(self.torn['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.torn['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
 
-                    self.wind = self.wind[(self.wind['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.wind['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
-                    
-                    
-                elif type(kwargs['por']) == tuple:
-                    kwargs['por'] = [str(x) for x in kwargs['por']]
-                    self.torn = self.torn[(self.torn['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.torn['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        self.hail = self.hail[(self.hail['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.hail['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
 
-                    self.hail = self.hail[(self.hail['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.hail['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        self.wind = self.wind[(self.wind['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
+                                            (self.wind['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
+                        
+                    else:
+                        print('por must be a List or Tuple\n[begpor,endpor]YYYMMDD')
+                        sys.exit()
 
-                    self.wind = self.wind[(self.wind['datetime']>=dt.datetime.strptime(kwargs['por'][0],'%Y%m%d%H%M'))&
-                                          (self.wind['datetime']<=dt.datetime.strptime(kwargs['por'][1],'%Y%m%d%H%M'))]
-                    
-                else:
-                    print('por must be a List or Tuple\n[begpor,endpor]YYYMMDD')
-                    sys.exit()
-
-            ## bbox and site can't be in the key word dict at the same time ##
-            if 'bbox' in kwargs.keys():
-                if 'site' in kwargs.keys():
-                    print("Can't pass bbox and site at the same time!!" )
-                    sys.exit()
-                if type(kwargs['bbox']) == list:
-                    bbox = kwargs['bbox']
-                elif type(kwargs['bbox']) == tuple:
-                    bbox = [x for x in kwargs['bbox']]
-                else:
-                    print('Bounding must be List or Tuple\n[nlat,slat,elon,wlon]')
-                    sys.exit()
-
-                self.torn = self.torn[((self.torn.slat <= bbox[0]) &
-                                       (self.torn.slat >= bbox[1]))|
-                                      ((self.torn.elat <= bbox[0]) &
-                                       (self.torn.elat >= bbox[1]))]
-
-                self.torn = self.torn[((self.torn.slon <= bbox[2]) &
-                                       (self.torn.slon >= bbox[3]))|
-                                      ((self.torn.elon <= bbox[2]) &
-                                       (self.torn.elon >= bbox[3]))]
-            
-                self.hail = self.hail[((self.hail.slat <= bbox[0]) &
-                                       (self.hail.slat >= bbox[1]))|
-                                      ((self.hail.elat <= bbox[0]) &
-                                       (self.hail.elat >= bbox[1]))]
-
-                self.hail = self.hail[((self.hail.slon <= bbox[2]) &
-                                       (self.hail.slon >= bbox[3]))|
-                                      ((self.hail.elon <= bbox[2]) &
-                                       (self.hail.elon >= bbox[3]))]
-
-                self.wind = self.wind[((self.wind.slat <= bbox[0]) &
-                                       (self.wind.slat >= bbox[1]))|
-                                      ((self.wind.elat <= bbox[0]) &
-                                       (self.wind.elat >= bbox[1]))]
-
-                self.wind = self.wind[((self.wind.slon <= bbox[2]) &
-                                       (self.wind.slon >= bbox[3]))|
-                                      ((self.wind.elon <= bbox[2]) &
-                                       (self.wind.elon >= bbox[3]))]
-
-                self.Time_to_Zulu()
-
-                self.torn.reset_index(inplace=True,drop=True)
-                self.torn = self.torn[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-
-                self.hail.reset_index(inplace=True,drop=True)
-                self.hail = self.hail[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-
-                self.wind.reset_index(inplace=True,drop=True)
-                self.wind = self.wind[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-                
-
-            if 'site' in kwargs.keys():
+                ## bbox and site can't be in the key word dict at the same time ##
                 if 'bbox' in kwargs.keys():
-                    print("Can't pass bbox and site at the same time!!" )
-                    sys.exit()
-##                print('No Site logic yet')
-                
-                try:
-                    float(kwargs['site'][0])
-                    self.net_plat = False
-                except ValueError:
-                    self.net_plat = True
+                    if 'site' in kwargs.keys():
+                        print("Can't pass bbox and site at the same time!!" )
+                        sys.exit()
+                    if type(kwargs['bbox']) == list:
+                        bbox = kwargs['bbox']
+                    elif type(kwargs['bbox']) == tuple:
+                        bbox = [x for x in kwargs['bbox']]
+                    else:
+                        print('Bounding must be List or Tuple\n[nlat,slat,elon,wlon]')
+                        sys.exit()
 
-                if self.net_plat:
-                    net=kwargs['site'][0]
-                    plat=kwargs['site'][1]
-                    dist=kwargs['site'][2]
-                    self.site_df = pd.read_csv(self.location+'station_table.csv')
-                    self.site_df = self.site_df[(self.site_df.NET == net.upper()) & (self.site_df.PLAT == plat.upper())].reset_index(drop = True)
-                    lat = self.site_df.loc[0,'LAT']
-                    lon = self.site_df.loc[0,'LON']
-                    site_point = Point(lon,lat)
+                    self.torn = self.torn[((self.torn.slat <= bbox[0]) &
+                                        (self.torn.slat >= bbox[1]))|
+                                        ((self.torn.elat <= bbox[0]) &
+                                        (self.torn.elat >= bbox[1]))]
+
+                    self.torn = self.torn[((self.torn.slon <= bbox[2]) &
+                                        (self.torn.slon >= bbox[3]))|
+                                        ((self.torn.elon <= bbox[2]) &
+                                        (self.torn.elon >= bbox[3]))]
+                
+                    self.hail = self.hail[((self.hail.slat <= bbox[0]) &
+                                        (self.hail.slat >= bbox[1]))|
+                                        ((self.hail.elat <= bbox[0]) &
+                                        (self.hail.elat >= bbox[1]))]
+
+                    self.hail = self.hail[((self.hail.slon <= bbox[2]) &
+                                        (self.hail.slon >= bbox[3]))|
+                                        ((self.hail.elon <= bbox[2]) &
+                                        (self.hail.elon >= bbox[3]))]
+
+                    self.wind = self.wind[((self.wind.slat <= bbox[0]) &
+                                        (self.wind.slat >= bbox[1]))|
+                                        ((self.wind.elat <= bbox[0]) &
+                                        (self.wind.elat >= bbox[1]))]
+
+                    self.wind = self.wind[((self.wind.slon <= bbox[2]) &
+                                        (self.wind.slon >= bbox[3]))|
+                                        ((self.wind.elon <= bbox[2]) &
+                                        (self.wind.elon >= bbox[3]))]
+
+                    print('Date is CST')
+                    #if self.time_type == 'central':
+                    #    self.Time_to_Zulu()
+
+                    self.torn.reset_index(inplace=True,drop=True)
+                    self.torn = self.torn[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
+
+                    self.hail.reset_index(inplace=True,drop=True)
+                    self.hail = self.hail[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
+
+                    self.wind.reset_index(inplace=True,drop=True)
+                    self.wind = self.wind[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
                     
+
+                if 'site' in kwargs.keys():
+                    if 'bbox' in kwargs.keys():
+                        print("Can't pass bbox and site at the same time!!" )
+                        sys.exit()
+    ##                print('No Site logic yet')
                     
-                else:
-                    lat = kwargs['site'][0]
-                    lon = kwargs['site'][1]
-                    dist= kwargs['site'][2]
-                    site_point = Point(lon,lat)
+                    try:
+                        float(kwargs['site'][0])
+                        self.net_plat = False
+                    except ValueError:
+                        self.net_plat = True
+
+                    if self.net_plat:
+                        net=kwargs['site'][0]
+                        plat=kwargs['site'][1]
+                        dist=kwargs['site'][2]
+                        self.site_df = pd.read_csv(self.location+'stations.csv')
+                        self.site_df = self.site_df[(self.site_df.NET == net.upper()) & (self.site_df.PLAT == plat.upper())].reset_index(drop = True)
+                        lat = self.site_df.loc[0,'LAT']
+                        lon = self.site_df.loc[0,'LON']
+                        site_point = Point(lon,lat)
+                        
+                        
+                    else:
+                        lat = kwargs['site'][0]
+                        lon = kwargs['site'][1]
+                        dist= kwargs['site'][2]
+                        site_point = Point(lon,lat)
+                        
                     
-                
 
 
-                self.hail['dist'],self.hail['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.hail['slat'],self.hail['slon'])
-                self.wind['dist'],self.wind['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.wind['slat'],self.wind['slon'])
-                self.torn['dist'],self.torn['bear'],self.torn['online']=np.vectorize(self.ClosestPoint)(self.torn['slat'],self.torn['slon'],self.torn['elat'],self.torn['elon'],lat,lon)
+                    self.hail['dist'],self.hail['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.hail['slat'],self.hail['slon'])
+                    self.wind['dist'],self.wind['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.wind['slat'],self.wind['slon'])
+                    self.torn['dist'],self.torn['bear'],self.torn['online']=np.vectorize(self.ClosestPoint)(self.torn['slat'],self.torn['slon'],self.torn['elat'],self.torn['elon'],lat,lon)
 
-                self.Time_to_Zulu()
+                    print('Date is CST')
+                    #if self.time_type == 'central':
+                    #    self.Time_to_Zulu()
 
-                self.torn.reset_index(inplace=True,drop=True)
-                self.torn = self.torn[(self.torn.dist<=dist)&(self.torn.online == True)][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-                self.torn.reset_index(inplace=True,drop=True)
+                    self.torn.reset_index(inplace=True,drop=True)
+                    self.torn = self.torn[(self.torn.dist<=dist)&(self.torn.online == True)][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
+                    self.torn.reset_index(inplace=True,drop=True)
 
-                self.hail.reset_index(inplace=True,drop=True)
-                self.hail = self.hail[self.hail.dist<=dist][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-                self.hail.reset_index(inplace=True,drop=True)
+                    self.hail.reset_index(inplace=True,drop=True)
+                    self.hail = self.hail[self.hail.dist<=dist][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
+                    self.hail.reset_index(inplace=True,drop=True)
 
-                self.wind.reset_index(inplace=True,drop=True)
-                self.wind = self.wind[self.wind.dist<=dist][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
-                self.wind.reset_index(inplace=True,drop=True)
+                    self.wind.reset_index(inplace=True,drop=True)
+                    self.wind = self.wind[self.wind.dist<=dist][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
+                    self.wind.reset_index(inplace=True,drop=True)
 
+                #print('Date is CST')
+                #if self.time_type == 'central':
+                #    self.Time_to_Zulu()
 
-            if self.time_type == 'central':
-                self.Time_to_Zulu()
-                
-
-                
-
-            
 
         
     def Time_to_Zulu(self):
@@ -353,11 +361,11 @@ SPC_TableLoader:\n
         trys = 0
         tyear = year
         while trys < 5:
-            if os.system('/usr/local/bin/wget '+torn_add.format(str(tyear))) != 2048:
+            if os.system('wget '+torn_add.format(str(tyear))+' -P '+self.location) != 2048:
                 print('Got Tornado Data 1950 to {}'.format(str(tyear)))
-                os.system('unzip 1950-{}_torn.csv.zip'.format(str(tyear)))
-                os.system('rm 1950-{}_torn.csv.zip'.format(str(tyear)))
-                os.system('mv 1950-{}_torn.csv '.format(str(tyear))+self.location+'storm_predicition_center/torn.csv')
+                os.system('unzip '+self.location+'1950-{}_torn.csv.zip'.format(str(tyear)))
+                os.system('rm '+self.location+'1950-{}_torn.csv.zip'.format(str(tyear)))
+                os.system('mv 1950-{}_torn.csv '.format(str(tyear))+self.location+'torn.csv')
                 break
             else:
                 tyear -= 1
@@ -366,11 +374,11 @@ SPC_TableLoader:\n
         trys = 0
         tyear = year
         while trys < 5:
-            if os.system('/usr/local/bin/wget '+hail_add.format(str(tyear))) != 2048:
+            if os.system('wget '+hail_add.format(str(tyear))+' -P '+self.location) != 2048:
                 print('Got Hail Data 1955 to {}'.format(str(tyear)))
-                os.system('unzip 1955-{}_hail.csv.zip'.format(str(tyear)))
-                os.system('rm 1955-{}_hail.csv.zip'.format(str(tyear)))
-                os.system('mv 1955-{}_hail.csv '.format(str(tyear))+self.location+'storm_predicition_center/hail.csv')
+                os.system('unzip '+self.location+'1955-{}_hail.csv.zip'.format(str(tyear)))
+                os.system('rm '+self.location+'1955-{}_hail.csv.zip'.format(str(tyear)))
+                os.system('mv 1955-{}_hail.csv '.format(str(tyear))+self.location+'hail.csv')
                 break
             else:
                 tyear -= 1
@@ -379,11 +387,11 @@ SPC_TableLoader:\n
         trys = 0
         tyear = year
         while trys < 5:
-            if os.system('/usr/local/bin/wget '+wind_add.format(str(tyear))) != 2048:
+            if os.system('wget '+wind_add.format(str(tyear))+' -P '+self.location) != 2048:
                 print('Got Wind Data 1955 to {}'.format(str(tyear)))
-                os.system('unzip 1955-{}_wind.csv.zip'.format(str(tyear)))
-                os.system('rm 1955-{}_wind.csv.zip'.format(str(tyear)))
-                os.system('mv 1955-{}_wind.csv '.format(str(tyear))+self.location+'storm_predicition_center/wind.csv')
+                os.system('unzip '+self.location+'1955-{}_wind.csv.zip'.format(str(tyear)))
+                os.system('rm '+self.location+'1955-{}_wind.csv.zip'.format(str(tyear)))
+                os.system('mv 1955-{}_wind.csv '.format(str(tyear))+self.location+'wind.csv')
                 break
             else:
                 tyear -= 1
