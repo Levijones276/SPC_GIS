@@ -154,9 +154,9 @@ SPC_TableLoader:\n
                                         ((self.wind.elon <= bbox[2]) &
                                         (self.wind.elon >= bbox[3]))]
 
-                    print('Date is CST')
-                    #if self.time_type == 'central':
-                    #    self.Time_to_Zulu()
+                    
+                    if self.time_type == 'central':
+                        self.Time_to_Zulu()
 
                     self.torn.reset_index(inplace=True,drop=True)
                     self.torn = self.torn[['yr', 'mo', 'dy','hr','time','mag','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
@@ -204,9 +204,9 @@ SPC_TableLoader:\n
                     self.wind['dist'],self.wind['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.wind['slat'],self.wind['slon'])
                     self.torn['dist'],self.torn['bear'],self.torn['online']=np.vectorize(self.ClosestPoint)(self.torn['slat'],self.torn['slon'],self.torn['elat'],self.torn['elon'],lat,lon)
 
-                    print('Date is CST')
-                    #if self.time_type == 'central':
-                    #    self.Time_to_Zulu()
+                    
+                    if self.time_type == 'central':
+                        self.Time_to_Zulu()
 
                     self.torn.reset_index(inplace=True,drop=True)
                     self.torn = self.torn[(self.torn.dist<=dist)&(self.torn.online == True)][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
@@ -220,16 +220,17 @@ SPC_TableLoader:\n
                     self.wind = self.wind[self.wind.dist<=dist][['yr', 'mo', 'dy','hr','time','mag','dist','bear','slat', 'slon', 'elat', 'elon','YEAR','MO','DAY','HR','geometry']]
                     self.wind.reset_index(inplace=True,drop=True)
 
-                #print('Date is CST')
-                #if self.time_type == 'central':
-                #    self.Time_to_Zulu()
+                
+                if self.time_type == 'central':
+                    self.Time_to_Zulu()
 
 
         
     def Time_to_Zulu(self):
         
         if self.time_type == 'central':
-            print('Converting Time to Zulu')
+            #print('Converting Time to Zulu')
+            print('Date/Time is in CST')
             self.torn['datetime'] = pd.to_datetime({'year':self.torn['yr'].values,'month':self.torn['mo'].values,'day':self.torn['dy'].values,'hour':pd.to_datetime(self.torn['time']).dt.hour})
             self.hail['datetime'] = pd.to_datetime({'year':self.hail['yr'].values,'month':self.hail['mo'].values,'day':self.hail['dy'].values,'hour':pd.to_datetime(self.hail['time']).dt.hour})
             self.wind['datetime'] = pd.to_datetime({'year':self.wind['yr'].values,'month':self.wind['mo'].values,'day':self.wind['dy'].values,'hour':pd.to_datetime(self.wind['time']).dt.hour})
@@ -265,7 +266,8 @@ SPC_TableLoader:\n
                 
 
         else:
-            print('Data already converted to Zulu')
+            #print('Data already converted to Zulu')
+            print('Date/Time is in CST')
 
     
 
@@ -299,7 +301,7 @@ SPC_TableLoader:\n
         self.hail = gpd.GeoDataFrame(self.hail, geometry=gpd.points_from_xy(self.hail.slon, self.hail.slat))
         self.wind = pd.read_csv(wind_path)
         self.wind = gpd.GeoDataFrame(self.wind, geometry=gpd.points_from_xy(self.wind.slon, self.wind.slat))
-##        self.Time_to_Zulu()
+        self.Time_to_Zulu()
         print('SPC Data Loaded')
 
 
