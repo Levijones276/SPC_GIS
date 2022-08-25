@@ -5,12 +5,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point, LineString
 import datetime as dt
-import matplotlib.pyplot as plt
-##import SFC_TableLoader
-import MetFuncs_Raw
-##import MetFuncs_Object
-##import HeatMap_Plotterelat
-##import Logo_plot
+import DistBear
 idx = pd.IndexSlice
 import warnings
 warnings.filterwarnings("ignore")
@@ -76,7 +71,7 @@ SPC_TableLoader:\n
             self.process(hail_path,torn_path,wind_path)
             stop = False
         except:
-            print('Need to run .Update_CSVs if on mac/linux with wget or \n download SPC data, rename to torn.csv,hail.csv,wind.csv and save in inputs directory')
+            print('Need to run .Update_CSVs if on mac/linux with wget or \n download SPC data from https://www.spc.noaa.gov/wcm/, rename to torn.csv,hail.csv,wind.csv and save in inputs directory')
             stop = True
         if not stop:
             if kwargs:
@@ -200,8 +195,8 @@ SPC_TableLoader:\n
                     
 
 
-                    self.hail['dist'],self.hail['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.hail['slat'],self.hail['slon'])
-                    self.wind['dist'],self.wind['bear']= np.vectorize(MetFuncs_Raw.DistBear)(lat,lon,self.wind['slat'],self.wind['slon'])
+                    self.hail['dist'],self.hail['bear']= np.vectorize(DistBear.DistBear)(lat,lon,self.hail['slat'],self.hail['slon'])
+                    self.wind['dist'],self.wind['bear']= np.vectorize(DistBear.DistBear)(lat,lon,self.wind['slat'],self.wind['slon'])
                     self.torn['dist'],self.torn['bear'],self.torn['online']=np.vectorize(self.ClosestPoint)(self.torn['slat'],self.torn['slon'],self.torn['elat'],self.torn['elon'],lat,lon)
 
                     
@@ -287,7 +282,7 @@ SPC_TableLoader:\n
         if (lat==True)&(lon==True):
             online = True
             
-        dist,bear = MetFuncs_Raw.DistBear(clat,clon,lat4,lon4)
+        dist,bear = DistBear.DistBear(clat,clon,lat4,lon4)
         return dist,bear,online        
 
     
